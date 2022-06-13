@@ -2,10 +2,15 @@ PROG ?= example
 MBEDTLS_DIR ?=
 
 ifeq "$(MBEDTLS_DIR)" ""
+  ifeq "$(OPENSSL)" "1"
+CFLAGS += -DMG_ENABLE_OPENSSL=1 -lssl -lcrypto
+  endif
 else
 CFLAGS += -DMG_ENABLE_MBEDTLS=1 -I$(MBEDTLS_DIR)/include -I/usr/include
 CFLAGS += -L$(MBEDTLS_DIR)/lib -lmbedtls -lmbedcrypto -lmbedx509
 endif
+
+
 
 all: $(PROG)
 	$(DEBUGGER) ./$(PROG) $(ARGS)
