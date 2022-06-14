@@ -34,19 +34,21 @@ static void fn(struct mg_connection *c, int ev, void *ev_data, void *fn_data) {
       mg_http_serve_dir(c, ev_data, &opts);
     }
   } else if (ev == MG_EV_WS_MSG) {
-      // Got websocket frame. Received data is wm->data.
-      struct mg_ws_message *wm = (struct mg_ws_message *) ev_data;
+    // Got websocket frame. Received data is wm->data.
+    struct mg_ws_message *wm = (struct mg_ws_message *) ev_data;
 
-      //Printing the Client IP address and the received message 
-      ip4_addr_t ip_st;
-      ip_st.addr = (c->rem.ip);
-      printf(IPSTR ": %.*s\n\r", IP2STR(&(ip_st)), (int)wm->data.len, wm->data.ptr);
-      
-      // Broadcast the received message to all connected websocket clients except the sender.
-      //https://mongoose.ws/tutorials/timers/
-      for (struct mg_connection *g = mgr->conns; g != NULL; g = g->next) {
+    //Printing the Client IP address and the received message 
+    ip4_addr_t ip_st;
+    ip_st.addr = (c->rem.ip);
+    printf(IPSTR ": %.*s\n\r", IP2STR(&(ip_st)), (int)wm->data.len, 
+            wm->data.ptr);
+    
+    // Broadcast the received message to all connected websocket 
+    // clients except the sender.
+    //https://mongoose.ws/tutorials/timers/
+    for (struct mg_connection *g = mgr->conns; g != NULL; g = g->next) {
       if(g!=c)
-        if (g->label[0] == 'W') mg_ws_send(g, wm->data.ptr, wm->data.len, WEBSOCKET_OP_TEXT);
+        mg_ws_send(g, wm->data.ptr, wm->data.len, WEBSOCKET_OP_TEXT);
     }
   }
   (void) fn_data;
