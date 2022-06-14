@@ -5,6 +5,7 @@
 
 #include "mongoose.h"
 #include "ip2str.h"
+#include "time.h"
 
 //https://stackoverflow.com/a/65955446/19124287
 static const char *s_listen_on = "ws://0.0.0.0:8000";
@@ -40,7 +41,14 @@ static void fn(struct mg_connection *c, int ev, void *ev_data, void *fn_data) {
     //Printing the Client IP address and the received message 
     ip4_addr_t ip_st;
     ip_st.addr = (c->rem.ip);
-    printf(IPSTR ": %.*s\n\r", IP2STR(&(ip_st)), (int)wm->data.len, 
+
+    time_t now = 0;
+    time(&now);
+    struct tm *timeinfo = localtime(&now);
+    char hora[10];
+    
+    strftime(hora, sizeof(hora), "%X", timeinfo);
+    printf("%.*s\t" IPSTR "\t%.*s\n\r", (int)strlen(hora), hora,IP2STR(&(ip_st)), (int)wm->data.len, 
             wm->data.ptr);
     
     // Broadcast the received message to all connected websocket 
