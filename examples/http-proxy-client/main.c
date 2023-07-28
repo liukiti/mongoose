@@ -5,9 +5,8 @@
 //    make
 //    ./example PROXY:PORT http://www.ladyada.net
 //
-// To enable SSL/TLS for this client, build it like this:
-//    make MBEDTLS_DIR=/path/to/your/mbedtls/installation
-
+// To enable SSL/TLS, see https://mongoose.ws/tutorials/tls/#how-to-build
+//
 #include "mongoose.h"
 
 // Print HTTP response and signal that we're done
@@ -25,11 +24,6 @@ static void fn(struct mg_connection *c, int ev, void *ev_data, void *fn_data) {
     mg_printf(c, "CONNECT %.*s:%hu HTTP/1.1\r\nHost: %.*s:%hu\r\n\r\n",
               (int) host.len, host.ptr, mg_url_port(url), (int) host.len,
               host.ptr, mg_url_port(url));
-    // If target URL is SSL/TLS, command client connection to use TLS
-    if (mg_url_is_ssl(url)) {
-      struct mg_tls_opts opts = {.ca = "ca.pem"};
-      mg_tls_init(c, &opts);
-    }
   } else if (!connected && ev == MG_EV_READ) {
     struct mg_http_message hm;
     int n = mg_http_parse((char *) c->recv.buf, c->recv.len, &hm);
@@ -41,8 +35,10 @@ static void fn(struct mg_connection *c, int ev, void *ev_data, void *fn_data) {
           ("Connected to proxy, status: %.*s", (int) hm.uri.len, hm.uri.ptr));
       mg_iobuf_del(&c->recv, 0, n);
       // Send request to the target server
-      mg_printf(c, "GET / HTTP/1.0\r\nHost: %.*s\r\n\r\n", (int) host.len,
-                host.ptr);
+      mg_printf(c, "GET %s HTTP/1.0\r\n"
+                   "Host: %.*s\r\n"
+                   "\r\n",
+                   mg_url_uri(url), (int) host.len, host.ptr);
     }
   }
 }
@@ -56,6 +52,8 @@ int main(int argc, char *argv[]) {
   }
 
   mg_mgr_init(&mgr);                            // Initialise event manager
+  struct mg_tls_opts opts = {.client_ca = mg_str(CA_ALL)};
+  mg_tls_ctx_init(&mgr, &opts);
   mg_http_connect(&mgr, argv[1], fn, argv[2]);  // Connect to the proxy
   for (;;) mg_mgr_poll(&mgr, 1000);             // Event loop
   mg_mgr_free(&mgr);

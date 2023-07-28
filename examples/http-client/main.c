@@ -5,9 +5,7 @@
 // print the response and exit.
 // You can change `s_url` from the command line by executing: ./example YOUR_URL
 //
-// To enable SSL/TLS for this client, build it like this:
-//    make MBEDTLS=/path/to/your/mbedtls/installation
-//    make OPENSSL=/path/to/your/openssl/installation
+// To enable SSL/TLS, , see https://mongoose.ws/tutorials/tls/#how-to-build
 
 #include "mongoose.h"
 
@@ -19,22 +17,16 @@ static const uint64_t s_timeout_ms = 1500;  // Connect timeout in milliseconds
 // Print HTTP response and signal that we're done
 static void fn(struct mg_connection *c, int ev, void *ev_data, void *fn_data) {
   if (ev == MG_EV_OPEN) {
-    // Connection created. Store connect expiration time in c->label
-    *(uint64_t *) c->label = mg_millis() + s_timeout_ms;
+    // Connection created. Store connect expiration time in c->data
+    *(uint64_t *) c->data = mg_millis() + s_timeout_ms;
   } else if (ev == MG_EV_POLL) {
-    if (mg_millis() > *(uint64_t *) c->label &&
+    if (mg_millis() > *(uint64_t *) c->data &&
         (c->is_connecting || c->is_resolving)) {
       mg_error(c, "Connect timeout");
     }
   } else if (ev == MG_EV_CONNECT) {
     // Connected to server. Extract host name from URL
     struct mg_str host = mg_url_host(s_url);
-
-    // If s_url is https://, tell client connection to use TLS
-    if (mg_url_is_ssl(s_url)) {
-      struct mg_tls_opts opts = {.ca = "ca.pem", .srvname = host};
-      mg_tls_init(c, &opts);
-    }
 
     // Send request
     int content_length = s_post_data ? strlen(s_post_data) : 0;
@@ -65,10 +57,12 @@ int main(int argc, char *argv[]) {
   struct mg_mgr mgr;              // Event manager
   bool done = false;              // Event handler flips it to true
   if (argc > 1) s_url = argv[1];  // Use URL provided in the command line
-  mg_log_set(log_level);          // Set to 0 to disable debug
+  mg_log_set(atoi(log_level));    // Set to 0 to disable debug
   mg_mgr_init(&mgr);              // Initialise event manager
+  struct mg_tls_opts opts = {.client_ca = mg_str(CA_ALL)};
+  mg_tls_ctx_init(&mgr, &opts);
   mg_http_connect(&mgr, s_url, fn, &done);  // Create client connection
-  while (!done) mg_mgr_poll(&mgr, 50);      // Infinite event loop
+  while (!done) mg_mgr_poll(&mgr, 50);      // Event manager loops until 'done'
   mg_mgr_free(&mgr);                        // Free resources
   return 0;
 }

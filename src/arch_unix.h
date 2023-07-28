@@ -4,7 +4,13 @@
 
 #define _DARWIN_UNLIMITED_SELECT 1  // No limit on file descriptors
 
-#if !defined(MG_ENABLE_POLL) && (defined(__linux__) || defined(__APPLE__))
+#if defined(__APPLE__)
+#include <mach/mach_time.h>
+#endif
+
+#if !defined(MG_ENABLE_EPOLL) && defined(__linux__)
+#define MG_ENABLE_EPOLL 1
+#elif !defined(MG_ENABLE_POLL)
 #define MG_ENABLE_POLL 1
 #endif
 
@@ -26,11 +32,15 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#if defined(MG_ENABLE_POLL) && MG_ENABLE_POLL
+
+#if defined(MG_ENABLE_EPOLL) && MG_ENABLE_EPOLL
+#include <sys/epoll.h>
+#elif defined(MG_ENABLE_POLL) && MG_ENABLE_POLL
 #include <poll.h>
 #else
 #include <sys/select.h>
 #endif
+
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/time.h>
@@ -40,6 +50,10 @@
 
 #ifndef MG_ENABLE_DIRLIST
 #define MG_ENABLE_DIRLIST 1
+#endif
+
+#ifndef MG_PATH_MAX
+#define MG_PATH_MAX FILENAME_MAX
 #endif
 
 #endif

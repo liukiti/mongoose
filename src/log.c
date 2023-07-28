@@ -1,10 +1,19 @@
 #include "log.h"
+#include "printf.h"
+#include "str.h"
 #include "util.h"
 
-static const char *s_spec = "2";
+static int s_level = MG_LL_INFO;
+static mg_pfn_t s_log_func = mg_pfn_stdout;
+static void *s_log_func_param = NULL;
+
+void mg_log_set_fn(mg_pfn_t fn, void *param) {
+  s_log_func = fn;
+  s_log_func_param = param;
+}
 
 static void logc(unsigned char c) {
-  MG_PUTCHAR(c);
+  s_log_func((char) c, s_log_func_param);
 }
 
 static void logs(const char *buf, size_t len) {
@@ -12,29 +21,19 @@ static void logs(const char *buf, size_t len) {
   for (i = 0; i < len; i++) logc(((unsigned char *) buf)[i]);
 }
 
-void mg_log_set(const char *spec) {
-  MG_DEBUG(("Setting log level to %s", spec));
-  s_spec = spec;
+void mg_log_set(int log_level) {
+  MG_DEBUG(("Setting log level to %d", log_level));
+  s_level = log_level;
 }
 
 bool mg_log_prefix(int level, const char *file, int line, const char *fname) {
-  // static unsigned long seq;
-  int max = MG_LL_INFO;
-  struct mg_str k, v, s = mg_str(s_spec);
-  const char *p = strrchr(file, '/');
-
-  if (p == NULL) p = strrchr(file, '\\');
-  p = p == NULL ? file : p + 1;
-
-  while (mg_commalist(&s, &k, &v)) {
-    if (v.len == 0) max = atoi(k.ptr);
-    if (v.len > 0 && strncmp(p, k.ptr, k.len) == 0) max = atoi(v.ptr);
-  }
-
-  if (level <= max) {
+  if (level <= s_level) {
+    const char *p = strrchr(file, '/');
     char buf[41];
-    size_t n = mg_snprintf(buf, sizeof(buf), "%llx %d %s:%d:%s", mg_millis(),
-                           level, p, line, fname);
+    size_t n;
+    if (p == NULL) p = strrchr(file, '\\');
+    n = mg_snprintf(buf, sizeof(buf), "%-6llx %d %s:%d:%s", mg_millis(), level,
+                    p == NULL ? file : p + 1, line, fname);
     if (n > sizeof(buf) - 2) n = sizeof(buf) - 2;
     while (n < sizeof(buf)) buf[n++] = ' ';
     logs(buf, n - 1);
@@ -45,15 +44,11 @@ bool mg_log_prefix(int level, const char *file, int line, const char *fname) {
 }
 
 void mg_log(const char *fmt, ...) {
-  char mem[256], *buf = mem;
   va_list ap;
-  size_t len;
   va_start(ap, fmt);
-  len = mg_vasprintf(&buf, sizeof(mem), fmt, ap);
+  mg_vxprintf(s_log_func, s_log_func_param, fmt, &ap);
   va_end(ap);
-  logs(buf, len);
-  logc((unsigned char) '\n');
-  if (buf != mem) free(buf);
+  logs("\r\n", 2);
 }
 
 static unsigned char nibble(unsigned c) {

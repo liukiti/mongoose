@@ -16,7 +16,7 @@ static void fn(struct mg_connection *c, int ev, void *ev_data, void *fn_data) {
     struct mg_http_message *hm = (struct mg_http_message *) ev_data;
     if (mg_http_match_uri(hm, "/websocket")) {
       mg_ws_upgrade(c, hm, NULL);  // Upgrade HTTP to Websocket
-      c->label[0] = 'W';           // Set some unique mark on a connection
+      c->data[0] = 'W';           // Set some unique mark on a connection
     } else {
       // Serve static files
       struct mg_http_serve_opts opts = {.root_dir = s_web_root};
@@ -37,17 +37,17 @@ static void timer_fn(void *arg) {
   // Traverse over all connections
   for (struct mg_connection *c = mgr->conns; c != NULL; c = c->next) {
     // Send only to marked connections
-    if (c->label[0] == 'W') mg_ws_send(c, "hi", 2, WEBSOCKET_OP_TEXT);
+    if (c->data[0] == 'W') mg_ws_send(c, "hi", 2, WEBSOCKET_OP_TEXT);
   }
 }
 
 int main(void) {
-  struct mg_mgr mgr;  // Event manager
-  mg_mgr_init(&mgr);  // Initialise event manager
-  mg_log_set("3");    // Set debug log level
+  struct mg_mgr mgr;        // Event manager
+  mg_mgr_init(&mgr);        // Initialise event manager
+  mg_log_set(MG_LL_DEBUG);  // Set log level
   mg_timer_add(&mgr, 1000, MG_TIMER_REPEAT, timer_fn, &mgr);
   mg_http_listen(&mgr, s_listen_on, fn, NULL);  // Create HTTP listener
-  for (;;) mg_mgr_poll(&mgr, 500);             // Infinite event loop
+  for (;;) mg_mgr_poll(&mgr, 500);              // Infinite event loop
   mg_mgr_free(&mgr);                            // Free manager resources
   return 0;
 }

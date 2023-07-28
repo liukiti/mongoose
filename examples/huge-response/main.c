@@ -27,15 +27,14 @@ static long getparam(struct mg_http_message *hm, const char *json_path) {
   return dv;
 }
 
-static size_t printdata(char *buf, size_t len, va_list *ap) {
+static size_t printdata(mg_pfn_t out, void *ptr, va_list *ap) {
   unsigned start = va_arg(*ap, unsigned);
   unsigned max = start + CHUNK_SIZE;
   const char *comma = "";
   size_t n = 0;
   if (max > DATA_SIZE) max = DATA_SIZE;
   while (start < max) {
-    n += mg_snprintf(buf ? buf + n : 0, len < n ? 0 : len - n, "%s%d", comma,
-                     s_data[start]);
+    n += mg_xprintf(out, ptr, "%s%d", comma, s_data[start]);
     comma = ",";
     start++;
   }
@@ -46,23 +45,21 @@ static void fn(struct mg_connection *c, int ev, void *ev_data, void *fn_data) {
   if (ev == MG_EV_HTTP_MSG) {
     struct mg_http_message *hm = ev_data;
     if (mg_http_match_uri(hm, "/api/data")) {
+      const char *headers = "content-type: text/json\r\n";
       long start = getparam(hm, "$.start");
       long version = getparam(hm, "$.version");
-      char *response = NULL;
-      MG_INFO(("%.*s", (int) hm->body.len, hm->body.ptr));
+      MG_DEBUG(("%.*s", (int) hm->body.len, hm->body.ptr));
       if (version > 0 && version != s_version) {
         // Version mismatch: s_data has changed while client fetches it
         // Tell client to restart
-        response = mg_mprintf("{%Q:%Q, %Q:%ld}", "error", "wrong version",
-                              "version", version);
+        mg_http_reply(c, 200, headers, "{%m:%m, %m:%ld}", MG_ESC("error"),
+                      MG_ESC("wrong version"), MG_ESC("version"), version);
       } else {
         // Return data, up to CHUNK_SIZE elements
-        response = mg_mprintf("{%Q:%ld,%Q:%ld,%Q:[%M]}", "version", s_version,
-                              "start", start, "data", printdata, start);
+        mg_http_reply(c, 200, headers, "{%m:%ld,%m:%ld,%m:[%M]}",
+                      MG_ESC("version"), s_version, MG_ESC("start"), start,
+                      MG_ESC("data"), printdata, start);
       }
-      mg_http_reply(c, 200, "Content-Type: text/json\r\n", "%s", response);
-      MG_INFO(("%s", response));
-      free(response);
     } else {
       struct mg_http_serve_opts opts = {0};
       opts.root_dir = s_root_dir;
